@@ -1,0 +1,85 @@
+# the newest and most recommended version of the docker-compose engine
+version: "3"
+
+# We’re just using one network, laravel, which we’re not adding any options to besides the name
+# If no network is specified, all containers are in the same network, which is created by default.
+# Therefore, if only one network is used, no network has to be specified at all.
+networks:
+  laravel:
+
+# Where we’ll specify the images that’ll make up our stack
+services:
+  nginx:
+    build:
+      context: ./nginx
+      args:
+        - USER_ID
+        - GROUP_ID
+    container_name: nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./src:/var/www
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    # By adding both php and mysql (services we’ll create next) under the depends_on item, we’re telling Docker that on
+    # initialization the php and mysql containers need to be running before nginx does
+    depends_on:
+      - php
+      - mysql
+    networks:
+      - laravel
+  mysql:
+    image: library/mysql:5.7.31
+    container_name: mysql
+    restart: unless-stopped
+    # entering using the terminal
+    tty: true
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_DATABASE: news24
+      # MYSQL_USER: root
+      # MYSQL_PASSWORD: 123
+      MYSQL_ROOT_PASSWORD: 123
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - laravel
+  php:
+    build:
+      # where to find Dockerfile
+      context: .
+      args:
+        - USER_ID
+        - GROUP_ID
+      dockerfile: Dockerfile
+    container_name: php
+    volumes:
+      - ./src:/var/www
+    ports:
+      - "9000:9000"
+    networks:
+      - laravel
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:5.0.2
+    container_name: phpmyadmin
+    ports:
+      - "8181:80"
+    environment:
+      - PMA_HOST=mysql
+      - PMA_USER=${PMA_USER_VAL}
+      - PMA_PASSWORD=${PMA_PSWD_VAL}
+    depends_on:
+          - mysql
+    networks:
+      - laravel
+
+# Volumes
+# Тома обеспечивают гибкость резервного копирования и сохранение по прекращении жизненного цикла контейнера,
+# а привязываемые монтируемые образы упрощают изменение кода во время разработки с немедленным отражением изменений
+# файлов или каталогов хоста в контейнерах
+volumes:
+  dbdata:
+    driver: local
